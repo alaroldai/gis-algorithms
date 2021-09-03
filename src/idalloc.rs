@@ -20,19 +20,6 @@ impl Debug for RangeInclusive {
   }
 }
 
-impl RangeInclusive {
-  fn try_join(&self, rhs: &RangeInclusive) -> Option<RangeInclusive> {
-    if self.end == rhs.start {
-      Some(RangeInclusive {
-        start: self.start,
-        end: rhs.end,
-      })
-    } else {
-      None
-    }
-  }
-}
-
 impl Iterator for RangeInclusive {
   type Item = usize;
   fn next(&mut self) -> Option<usize> {

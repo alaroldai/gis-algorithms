@@ -73,7 +73,7 @@ impl App {
       }
     }
 
-    for i in 0..10{
+    for i in 0..10 {
       let mut sample = points
         .choose_multiple(&mut thread_rng(), points.len() / 10)
         .cloned()
@@ -81,9 +81,7 @@ impl App {
       
       let mut delaunay = Delaunay::new(&sample);
 
-      for step in 0..10 {
-      // loop {
-
+      for step in 0.. {
         // let mut of = fs::OpenOptions::new()
         // .write(true)
         // .create(true)
