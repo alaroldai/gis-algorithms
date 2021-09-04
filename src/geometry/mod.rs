@@ -7,16 +7,16 @@ use nalgebra::{
 };
 use std::{
   cmp::Ordering,
-  collections::{
-    BTreeSet,
-    VecDeque,
-  },
   io,
 };
 
 mod delaunay;
+pub use delaunay::*;
+
+#[cfg(feature = "voronoi")]
 mod voronoi;
-pub use { delaunay::*, voronoi::* };
+#[cfg(feature = "voronoi")]
+pub use voronoi::*;
 
 pub type Point = Point2<f32>;
 
@@ -35,8 +35,9 @@ pub fn point_cmp_lex_yx(lhs: &Point, rhs: &Point) -> Option<Ordering> {
 }
 
 fn circumcircle(a: usize, b: usize, c: usize, points: &[Point]) -> Option<(Point, f32)> {
+  //! Returns the centrepoint and radius of the circumcircle of three points
   use nalgebra::Matrix2;
-  /// Returns the centrepoint and radius of the circumcircle of three points
+
   // We can get the centrepoint by finding the:
   //  - edges of the triangle
   //  - normals at their midpoints
@@ -163,9 +164,7 @@ impl Box2 {
 /// Returns a sequence of indices into `points` giving the order of points
 /// included in the convex hull
 pub fn convex_hull(points: &[Point]) -> Vec<usize> {
-  fn perpendicular_product(a: Point, o: Point, b: Point) -> f32 {
-    (a - o).perp(&(b - o))
-  }
+  fn perpendicular_product(a: Point, o: Point, b: Point) -> f32 { (a - o).perp(&(b - o)) }
 
   fn compute_hull<'a>(it: impl Iterator<Item = &'a usize>, points: &[Point]) -> Vec<usize> {
     let mut hull = Vec::new();
@@ -202,8 +201,8 @@ fn io_string(mut f: impl FnMut(&mut dyn io::Write) -> io::Result<()>) -> io::Res
   use io::{
     Read,
     Seek,
-    Write,
   };
+
   let mut out = io::Cursor::new(Vec::new());
 
   f(&mut out)?;

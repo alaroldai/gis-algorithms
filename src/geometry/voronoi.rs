@@ -1,16 +1,14 @@
-use {
-  super::{
-    Point,
-    point_cmp_lex_yx,
-    circumcircle,
+use super::{
+  circumcircle,
+  point_cmp_lex_yx,
+  Point,
+};
+use std::{
+  collections::{
+    BTreeSet,
+    VecDeque,
   },
-  std::{
-    io,
-    collections::{
-      BTreeSet,
-      VecDeque
-    }
-  },
+  io,
 };
 
 pub struct Edge {
@@ -42,12 +40,7 @@ impl Segment {
     format!("((x-{})**2 / -4) + {}", h, k)
   }
 
-  fn breakpoint_with(
-    &self,
-    other: &Segment,
-    directrix: Point,
-    points: &[Point],
-  ) -> f32 {
+  fn breakpoint_with(&self, other: &Segment, directrix: Point, points: &[Point]) -> f32 {
     let f1 = &points[self.focus];
     let (x1, y1) = (f1.coords.x, f1.coords.y);
     let f2 = &points[other.focus];
@@ -108,11 +101,7 @@ impl Voronoi {
     let mut edges: Vec<Edge> = vec![];
     let mut segments: Vec<Segment> = vec![];
 
-    fn find_segment(
-      directrix: Point,
-      segments: &[Segment],
-      points: &[Point],
-    ) -> Option<usize> {
+    fn find_segment(directrix: Point, segments: &[Segment], points: &[Point]) -> Option<usize> {
       let mut nid = 0;
       loop {
         if nid >= segments.len() {
@@ -328,7 +317,7 @@ impl Voronoi {
       directrix.coords.y, directrix.coords.x, directrix.coords.y
     )?;
 
-    writeln!(out);
+    writeln!(out)?;
 
     let mut result = String::new();
     out.seek(io::SeekFrom::Start(0))?;

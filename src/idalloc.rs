@@ -1,4 +1,3 @@
-use log::*;
 use std::{
   cmp::Ordering,
   collections::VecDeque,
@@ -107,7 +106,7 @@ impl IdAlloc {
           }
         });
       }
-      Err(ipt) => {
+      Err(_) => {
         // id is already allocated, nothing to do
       }
     }

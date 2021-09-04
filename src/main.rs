@@ -74,20 +74,23 @@ impl App {
     }
 
     for i in 0..10 {
-      let mut sample = points
+      let sample = points
         .choose_multiple(&mut thread_rng(), points.len() / 10)
         .cloned()
         .collect::<Vec<_>>();
-      
+
       let mut delaunay = Delaunay::new(&sample);
 
       for step in 0.. {
-        // let mut of = fs::OpenOptions::new()
-        // .write(true)
-        // .create(true)
-        // .truncate(true)
-        // .open(self.output.join(&format!("delaunay-{}-{}.plt", i, step)))?;
-        // write!(of, "{}", delaunay.gnuplot()?)?;
+        #[cfg(feature = "delaunay-steps")]
+        {
+          let mut of = fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(self.output.join(&format!("delaunay-{}-{}.plt", i, step)))?;
+          write!(of, "{}", delaunay.gnuplot()?)?;
+        }
 
         match delaunay.step() {
           std::task::Poll::Ready(Ok(())) => break,
@@ -97,16 +100,17 @@ impl App {
       }
 
       let mut of = fs::OpenOptions::new()
-      .write(true)
-      .create(true)
-      .truncate(true)
-      .open(self.output.join(&format!("delaunay-{}.plt", i)))?;
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(self.output.join(&format!("delaunay-{}.plt", i)))?;
       write!(of, "{}", delaunay.gnuplot()?)?;
     }
 
     Ok(())
   }
 
+  #[cfg(feature = "voronoi")]
   fn gen_voronoi(&self) -> io::Result<()> {
     let mut points = Vec::new();
     for x in 0..10 {
@@ -161,7 +165,10 @@ fn main() -> io::Result<()> {
 
   app.gen_bounding_boxes()?;
 
-  // app.gen_voronoi()?;
+  #[cfg(feature = "voronoi")]
+  {
+    app.gen_voronoi()?;
+  }
 
   app.gen_delaunay()?;
 

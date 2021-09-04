@@ -1,100 +1,107 @@
-use {
-  super::{Point, circumcircle, io_string},
-  std::{
-    io,
-    collections::{VecDeque, BTreeMap, BTreeSet},
+use super::{
+  circumcircle,
+  io_string,
+  Point,
+};
+use std::{
+  collections::{
+    BTreeMap,
+    BTreeSet,
+    VecDeque,
   },
+  io,
 };
 
-// Sort a, b, and c such that the resulting a, b, c represents a clockwise rotation
+/// Sort a, b, and c such that the resulting a, b, c represents a clockwise
+/// rotation
 fn sort_clockwise(points: &[Point], a: usize, b: usize, c: usize) -> (usize, usize, usize) {
-  if (points[b]-points[a]).perp(&(points[c]-points[b])) < 0f32 {
+  if (points[b] - points[a]).perp(&(points[c] - points[b])) < 0f32 {
     (a, b, c)
   } else {
     (a, c, b)
   }
 }
 
+/// sorts an edge a-b so that the resulting edge has the lowest-index point
+/// first e.g. (5,2) becomes(2,5) but (1,3) stays the same
+/// used for inserting edges into map structures (e.g. BTreeMap)
 fn sort_edge_lex(a: usize, b: usize) -> (usize, usize) {
-  if a > b { (b, a) }
-  else { (a, b) }
-}
-
-fn circumcircle_contains(t: &Triad, p: Point, points: &[Point]) -> bool {
-  log::info!("testing neighbour: {}, {}, {}", t.a, t.b, t.c);
-  if let Some((centre, radius)) = circumcircle(t.a, t.b, t.c, points) {
-    let d = (p-centre).norm();
-    log::info!("flip: {} <= {}?", d, radius);
-    d <= radius
+  if a > b {
+    (b, a)
   } else {
-    false
+    (a, b)
   }
 }
 
-// returns a new triad, with 'x' as the first vertex
+/// Tests whether the circumcircle of `t` contains `point`.
+fn circumcircle_contains(t: &Triad, p: Point, points: &[Point]) -> bool {
+  let d = (p - t.cc_centre).norm();
+  log::info!("flip: {} <= {}?", d, t.cc_radius);
+  d <= t.cc_radius
+}
+
+/// returns a new triad, with 'x' as the first vertex
 fn triad_normalise(triad: &Triad, x: usize) -> Triad {
   if triad.a == x {
     // nothing to do...
     triad.clone()
-  }
-  else if triad.b == x {
+  } else if triad.b == x {
     Triad {
-      a: triad.b, 
-      b: triad.c, 
+      a: triad.b,
+      b: triad.c,
       c: triad.a,
 
       ab: triad.bc,
       bc: triad.ca,
       ca: triad.ab,
-      centre: triad.centre,
-      radius: triad.radius,
+      cc_centre: triad.cc_centre,
+      cc_radius: triad.cc_radius,
     }
-  }
-  else if triad.c == x {
+  } else if triad.c == x {
     Triad {
-      a: triad.c, 
-      b: triad.a, 
+      a: triad.c,
+      b: triad.a,
       c: triad.b,
 
       ab: triad.ca,
       bc: triad.ab,
       ca: triad.bc,
 
-      centre: triad.centre,
-      radius: triad.radius,
+      cc_centre: triad.cc_centre,
+      cc_radius: triad.cc_radius,
     }
   } else {
     panic!("{} is not a vertex in {:?}", x, triad);
   }
 }
 
+/// Sets the neighbour of the edge starting at `start` in triangle `triad_id` to
+/// `neighbour`.
 fn bind_edge(triad_id: usize, start: usize, neighbour: usize, triads: &mut [Triad]) {
   let mut triad = &mut triads[triad_id];
-  if triad.a == start {
-    triad.ab = Some(neighbour);
-    log::info!("binding {}.{} = {}", triad_id, "ab", neighbour);
+  match start {
+    start if start == triad.a => triad.ab = Some(neighbour),
+    start if start == triad.b => triad.bc = Some(neighbour),
+    start if start == triad.c => triad.ca = Some(neighbour),
+    _ => panic!("{} is not a vertex of {:?}", start, triad),
   }
-  else if triad.b == start {
-    triad.bc = Some(neighbour);
-    log::info!("binding {}.{} = {}", triad_id, "bc", neighbour);
-  }
-  else if triad.c == start {
-    triad.ca = Some(neighbour);
-    log::info!("binding {}.{} = {}", triad_id, "ca", neighbour);
-  }
-  else { panic!("{} is not a vertex of {:?}", start, triad) }
 }
 
 // assumes that edge ab of `first` is the shared edge,
-// and that second has been normalised so that point `a` is the same in both triads
-// (i.e. the shared edge is ca in the second triad)
+// and that second has been normalised so that point `a` is the same in both
+// triads (i.e. the shared edge is ca in the second triad)
 fn do_flip(first_id: usize, second_id: usize, triads: &mut [Triad], points: &[Point]) {
   let first = triads[first_id].clone();
   let second = triads[second_id].clone();
 
-  log::info!("flip: {} {} {} and {} {} {}",
-    first.a, first.b, first.c,
-    second.a, second.b, second.c,
+  log::info!(
+    "flip: {} {} {} and {} {} {}",
+    first.a,
+    first.b,
+    first.c,
+    second.a,
+    second.b,
+    second.c,
   );
 
   let mut new_second = triad_normalise(&second, first.a);
@@ -117,11 +124,6 @@ fn do_flip(first_id: usize, second_id: usize, triads: &mut [Triad], points: &[Po
   triads[first_id] = new_first;
 }
 
-struct HullPoint {
-  point: usize,
-  triad: usize,
-}
-
 #[derive(Clone, Debug)]
 pub struct Triad {
   // points
@@ -135,22 +137,25 @@ pub struct Triad {
   ca: Option<usize>,
 
   // circumcircle
-  centre: Point,
-  radius: f32,
+  cc_centre: Point,
+  cc_radius: f32,
 }
 
 impl Triad {
-  fn new(a: usize, b: usize, c: usize, centre: Point, radius: f32) -> Triad {
+  fn new(a: usize, b: usize, c: usize, cc_centre: Point, cc_radius: f32) -> Triad {
     Triad {
-      a, b, c,
+      a,
+      b,
+      c,
       ab: None,
       bc: None,
       ca: None,
-      centre, radius,
+      cc_centre,
+      cc_radius,
     }
   }
 
-  fn com(&self, points: &[Point]) -> Point {
+  fn centre_of_mass(&self, points: &[Point]) -> Point {
     Point::new(
       (points[self.a].coords.x + points[self.b].coords.x + points[self.c].coords.x) / 3f32,
       (points[self.a].coords.y + points[self.b].coords.y + points[self.c].coords.y) / 3f32,
@@ -158,6 +163,43 @@ impl Triad {
   }
 }
 
+/// Implements the "sweephull" delaunay triangulation algorithm
+///
+///
+/// Basic algorithm is this:
+/// - Pick one of the input points as a "pivot" point and sort the points by
+///   distance to the pivot
+/// - Construct an initial "seed" triangle from the pivot, it's nearest
+///   neighbour, and the point that forms the smallest circumcircle with those
+///   two points
+/// - Process the other points in order, keeping track of a convex hull of the
+///   set of points that have been added. Each new point will form a triangle
+///   that shares one of the edges with the convex hull Track the triangles as
+///   they are created, including tracking neighbor relationships between
+///   triangles
+/// - Once all the points have been processed, the triangles form a valid
+///   triangulation but not a Delaunay triangulation The last step is to process
+///   each pair of neighbouring triangles, check if they're a valid Delaunay
+///   pair (i.e., no point falls inside the circumcircle of the other three),
+///   and if not, "flip" the shared edge. After this is finished, the
+///   triangulation is a Delaunay triangulation.
+///
+/// Complexity: O(n*log(n)). One sort and two linear passes (one for the points,
+/// one for the triangles)
+///
+/// Implementation is in three parts:
+/// - Initialisation (`new`) does the sort and constructs the seed triangle
+/// - A `step` function implements the processing of a single point from the
+///   sorted point array. Iteration variables are stored in this struct.
+/// - After the final point has been processed, `flip_step` does the final
+///   flipping pass over all the triangles.
+///
+/// Note that pretty much all operations here use index buffers rather than
+/// using the points directly This is mainly a stylistic choice on my part, but
+/// it also means that there's a single point of truth for all points, which may
+/// help mitigate any floating point arithmetic errors. It also means we can do
+/// some operations entirely symbolically - e.g. the "normalise" operation is
+/// entirely symbolic.
 pub struct Delaunay {
   // iterator variables
   origin: Point,
@@ -171,7 +213,6 @@ pub struct Delaunay {
 }
 
 impl Delaunay {
-
   pub fn flip_step(&mut self) {
     log::info!("{:?}", self.triads_by_edge);
     // for each adjacent pair of triangles,
@@ -180,19 +221,19 @@ impl Delaunay {
     let mut visited = BTreeSet::new();
     let mut queue = VecDeque::new();
     queue.push_front(0usize);
-    
+
     while let Some(tid) = queue.pop_front() {
       visited.insert(tid);
       let triad = &self.triads[tid];
-      log::info!("flip: [{}] {}, {}, {}", tid, triad.a, triad.b, triad.c, );
+      log::info!("flip: [{}] {}, {}, {}", tid, triad.a, triad.b, triad.c,);
 
       // For each edge starting at vertex `start`, we may have a neighbour `next`,
       // which we need to flip with if the point `outside` is inside its circumcircle
       for (start, next, outside) in [
         (triad.a, triad.ab, triad.c),
         (triad.b, triad.bc, triad.a),
-        (triad.c, triad.ca, triad.b)]
-      {
+        (triad.c, triad.ca, triad.b),
+      ] {
         if let Some(next) = next {
           if !visited.contains(&next) {
             log::info!("flip: discovered neighbour");
@@ -200,10 +241,21 @@ impl Delaunay {
             continue;
           }
 
+          // The original sweephull implementation has a separate branch here,
+          // depending on which edge is shared and where that edge falls in each triangle
+          // That's probably more efficient than this, but we avoid some extra code here
+          // by rotating each triangle so that on the shared edge is "ab"
+          // on the tid triangle and "ca" on the "next" triangle
+          // (i.e., "a" is the same in both triangles)
+          //
+          // This means we only need to implement one "do_flip" function.
           self.triads[next] = triad_normalise(&self.triads[next], start);
           self.triads[tid] = triad_normalise(&self.triads[tid], start);
-          log::info!("after normalise ({}): {} {} {}",
-            self.triads[next].a, self.triads[next].b, self.triads[next].c,
+          log::info!(
+            "after normalise ({}): {} {} {}",
+            self.triads[next].a,
+            self.triads[next].b,
+            self.triads[next].c,
             start,
           );
           if circumcircle_contains(&self.triads[next], self.points[outside], &self.points) {
@@ -215,7 +267,8 @@ impl Delaunay {
   }
 
   pub fn step(&mut self) -> std::task::Poll<Result<(), ()>> {
-    //! Attempt to add the next point to the convex hull, and add triangles to any visible edges in the hull
+    //! Attempt to add the next point to the convex hull, and add triangles to
+    //! any visible edges in the hull
     log::info!("step: triads_by_edge: {:?}", self.triads_by_edge);
     if self.next >= self.sorted_points.len() {
       log::info!("flip step");
@@ -230,67 +283,87 @@ impl Delaunay {
 
     log::info!("step {}: {}, {}", self.next, pt.coords.x, pt.coords.y);
 
-    // log::info!("Hull: \n{}", self.hull.iter().map(|h| format!("{}, {}", self.points[*h].coords.x, self.points[*h].coords.y)).collect::<Vec<_>>().join("\n"));
-
-    // visibility test: an edge (h0, h1) is visible if the angle (h0, h1, pt) is counter-clockwise.
+    // visibility test: an edge (h0, h1) is visible if the angle (h0, h1, pt) is
+    // counter-clockwise.
     let visible = |hid: usize, hnext: usize, hull: &[usize], points: &[Point]| -> bool {
       let h0 = &points[hull[hid]];
       let h1 = &points[hull[hnext]];
-      let angle = (h1-h0).perp(&(pt-h1));
+      let angle = (h1 - h0).perp(&(pt - h1));
       let visible = angle > 0f32;
-      // log::info!(
-      //   "Edge {}: ({}, {}) -> {}: ({}, {}) is {} ",
-      //   hid, h0.coords.x, h0.coords.y,
-      //   hnext, h1.coords.x, h1.coords.y,
-      //   if visible { "visible" } else { "not visible" }
-      // );
+
       visible
     };
 
-    let next_hid = |hid: usize, hull_len: usize| -> usize { if hid >= hull_len - 1 { 0 } else { hid + 1} };
-    let prev_hid = |hid: usize, hull_len: usize| -> usize { if hid <= 0 { hull_len - 1 } else { hid - 1} };
+    let next_hid = |hid: usize, hull_len: usize| -> usize {
+      if hid >= hull_len - 1 {
+        0
+      } else {
+        hid + 1
+      }
+    };
+    let prev_hid = |hid: usize, hull_len: usize| -> usize {
+      if hid <= 0 {
+        hull_len - 1
+      } else {
+        hid - 1
+      }
+    };
 
     log::info!("--- find first visible edge");
     // Find the origin first visible edge of the hull
-    let hid_start = (0..self.hull.len()).rev().filter(|hid| {
-      let (hnext, hprev) = (next_hid(*hid, self.hull.len()), prev_hid(*hid, self.hull.len()));
-      visible(*hid, hnext, &self.hull, &self.points)
-      && !visible(hprev, *hid, &self.hull, &self.points)
-    }).next();
+    let hid_start = (0..self.hull.len())
+      .rev()
+      .filter(|hid| {
+        let (hnext, hprev) = (
+          next_hid(*hid, self.hull.len()),
+          prev_hid(*hid, self.hull.len()),
+        );
+        visible(*hid, hnext, &self.hull, &self.points)
+          && !visible(hprev, *hid, &self.hull, &self.points)
+      })
+      .next();
 
     let hid_start = match hid_start {
       None => {
         log::error!("No visible edges in the hull");
         return std::task::Poll::Ready(Err(()));
       }
-      Some(v) => v
+      Some(v) => v,
     };
 
     // Any points in the hull that are not
     //  - the origin of the first visible edge (hid_start), or
     //  - the destination of the last visible edge
-    // can be removed from the hull - we're about to add triangles that will make them interior points.
+    // can be removed from the hull - we're about to add triangles that will make
+    // them interior points.
 
     log::info!("--- walk visible edges");
     let mut hid = hid_start;
     loop {
       let hnext = next_hid(hid, self.hull.len());
-      if !visible(hid, hnext, &self.hull, &self.points) { break; }
+      if !visible(hid, hnext, &self.hull, &self.points) {
+        break;
+      }
 
       log::info!("Found new visible edge");
 
       let h0 = self.hull[hid];
       let h1 = self.hull[hnext];
-      
+
       let (centre, radius) = circumcircle(h0, h1, pid, &self.points).unwrap();
       let tid = self.triads.len();
-      let mut triad = Triad::new(h0, h1, pid, centre, radius);
+      let triad = Triad::new(h0, h1, pid, centre, radius);
       self.triads.push(triad);
       log::info!("new triad with vertices {}, {}, {}", h0, h1, pid);
 
       for (a, b) in [(h0, h1), (h1, pid), (pid, h0)] {
         if let Some(other) = self.triads_by_edge.get(&sort_edge_lex(a, b)) {
-          log::info!("new neighbour with vertices {}, {}, {}", self.triads[*other].a, self.triads[*other].b, self.triads[*other].c);
+          log::info!(
+            "new neighbour with vertices {}, {}, {}",
+            self.triads[*other].a,
+            self.triads[*other].b,
+            self.triads[*other].c
+          );
           bind_edge(tid, a, *other, &mut self.triads);
           bind_edge(*other, b, tid, &mut self.triads);
         }
@@ -307,14 +380,24 @@ impl Delaunay {
 
         // note that because we're removing from hull, we don't need to increment hid.
         // we do need to check that it doesn't overflow though
-        if hid == self.hull.len() { hid = 0 };
+        if hid == self.hull.len() {
+          hid = 0
+        };
       } else {
         hid = next_hid(hid, self.hull.len());
       }
     }
     self.hull.insert(hid, pid);
 
-    log::info!("New hull: \n{}", self.hull.iter().map(|h| format!("{}, {}", self.points[*h].coords.x, self.points[*h].coords.y)).collect::<Vec<_>>().join("\n"));
+    log::info!(
+      "New hull: \n{}",
+      self
+        .hull
+        .iter()
+        .map(|h| format!("{}, {}", self.points[*h].coords.x, self.points[*h].coords.y))
+        .collect::<Vec<_>>()
+        .join("\n")
+    );
 
     self.next += 1;
 
@@ -326,7 +409,12 @@ impl Delaunay {
     let p0 = sorted[0].clone();
 
     fn sort_radial(origin: &Point, indices: &mut [usize], points: &[Point]) {
-      indices.sort_by(|p, q| (points[*p]-origin).norm().partial_cmp(&(points[*q]-origin).norm()).unwrap());
+      indices.sort_by(|p, q| {
+        (points[*p] - origin)
+          .norm()
+          .partial_cmp(&(points[*q] - origin).norm())
+          .unwrap()
+      });
     }
     sort_radial(&points[sorted[0]], &mut sorted, points);
 
@@ -359,7 +447,7 @@ impl Delaunay {
 
     Delaunay {
       origin: points[0].clone(),
-      hull: vec![ a, b, c, ],
+      hull: vec![a, b, c],
       sorted_points: sorted,
       next: 0,
       triads_by_edge,
@@ -370,11 +458,14 @@ impl Delaunay {
   }
 
   pub fn gnuplot(&self) -> io::Result<String> {
-    use io::{ Write, };
     io_string(|out| {
       writeln!(out, "$points << EOD")?;
       for (i, point) in self.points.iter().enumerate() {
-        writeln!(out, "{} {} 2 {}", point.coords.x, point.coords.y,
+        writeln!(
+          out,
+          "{} {} 2 {}",
+          point.coords.x,
+          point.coords.y,
           if i == 0 { "2" } else { "6" }
         )?;
       }
@@ -386,9 +477,13 @@ impl Delaunay {
         let c = self.points[triad.c];
 
         for (f, g) in [(a, b), (b, c), (c, a)] {
-          writeln!(out, "{} {} {} {}",
-            f.coords.x, f.coords.y,
-            Point::from(g-f).coords.x, Point::from(g-f).coords.y
+          writeln!(
+            out,
+            "{} {} {} {}",
+            f.coords.x,
+            f.coords.y,
+            Point::from(g - f).coords.x,
+            Point::from(g - f).coords.y
           )?;
         }
       }
@@ -397,12 +492,19 @@ impl Delaunay {
       for triad in &self.triads {
         for n in [triad.ab, triad.bc, triad.ca] {
           if let Some(n) = n {
-            let centre = triad.com(&self.points);
-            writeln!(out, "{} {} {} {}", 
-              centre.coords.x, centre.coords.y,
-              Point::from(self.triads[n].com(&self.points) - centre).coords.x,
-              Point::from(self.triads[n].com(&self.points) - centre).coords.y
-            );
+            let centre = triad.centre_of_mass(&self.points);
+            writeln!(
+              out,
+              "{} {} {} {}",
+              centre.coords.x,
+              centre.coords.y,
+              Point::from(self.triads[n].centre_of_mass(&self.points) - centre)
+                .coords
+                .x,
+              Point::from(self.triads[n].centre_of_mass(&self.points) - centre)
+                .coords
+                .y
+            )?;
           }
         }
       }

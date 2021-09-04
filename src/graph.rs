@@ -59,9 +59,9 @@ impl<N> Graph<N, ()> {
 }
 
 impl<N, E> Graph<N, E> {
-  pub fn get_node(&self, nid: usize) -> Option<&N> {
-    self.nodes.get(&nid).map(|n| &n.value)
-  }
+  pub fn get_node(&self, nid: usize) -> Option<&N> { self.nodes.get(&nid).map(|n| &n.value) }
+
+  pub fn get_edge(&self, nid: usize) -> Option<&E> { self.edges.get(&nid).map(|n| &n.value) }
 
   // Returns Some(nid) on success, None if the node already exists
   // (ideally we'd allocate `nid` ourselves and reuse them, but I'm trying to keep
