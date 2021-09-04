@@ -109,6 +109,10 @@ fn do_flip(first_id: usize, second_id: usize, triads: &mut [Triad], points: &[Po
   new_second.bc = Some(first_id);
   new_second.ca = first.ca;
 
+  let (cc_centre, cc_radius) = circumcircle(new_second.a, new_second.b, new_second.c, points).unwrap();
+  new_second.cc_centre = cc_centre;
+  new_second.cc_radius = cc_radius;
+
   if let Some(neighbour) = new_second.ca {
     bind_edge(neighbour, new_second.a, second_id, triads);
   }
@@ -118,6 +122,11 @@ fn do_flip(first_id: usize, second_id: usize, triads: &mut [Triad], points: &[Po
   new_first.a = second.b;
   new_first.ca = Some(second_id);
   new_first.ab = second.bc;
+
+  let (cc_centre, cc_radius) = circumcircle(new_first.a, new_first.b, new_first.c, points).unwrap();
+  new_first.cc_centre = cc_centre;
+  new_first.cc_radius = cc_radius;
+
   if let Some(neighbour) = new_first.ab {
     bind_edge(neighbour, new_first.b, first_id, triads);
   }
@@ -459,6 +468,8 @@ impl Delaunay {
 
   pub fn gnuplot(&self) -> io::Result<String> {
     io_string(|out| {
+      writeln!(out, "set xrange [0:10]");
+      writeln!(out, "set yrange [0:10]");
       writeln!(out, "$points << EOD")?;
       for (i, point) in self.points.iter().enumerate() {
         writeln!(
@@ -509,9 +520,16 @@ impl Delaunay {
         }
       }
       writeln!(out, "EOD")?;
+
+      writeln!(out, "$circles << EOD");
+      for triad in &self.triads {
+        writeln!(out, "{} {} {}", triad.cc_centre.coords.x, triad.cc_centre.coords.y, triad.cc_radius);
+      }
+      writeln!(out, "EOD");
       writeln!(out, "plot $points with points, \\")?;
       writeln!(out, "$edges with vectors nohead, \\")?;
       writeln!(out, "$neighbours with vectors, \\")?;
+      writeln!(out, "$circles with circles, \\")?;
       writeln!(out)?;
 
       Ok(())

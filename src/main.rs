@@ -20,6 +20,12 @@ use structopt::StructOpt;
 struct App {
   #[structopt(short, long, parse(from_os_str), default_value = "gen")]
   output: PathBuf,
+
+  #[structopt(long)]
+  examples: usize,
+
+  #[structopt(long)]
+  delaunay_steps: bool,
 }
 
 impl App {
@@ -31,7 +37,7 @@ impl App {
       }
     }
 
-    for idx in 0..10 {
+    for idx in 0..self.examples {
       let sample = points
         .choose_multiple(&mut thread_rng(), points.len() / 10)
         .cloned()
@@ -73,7 +79,7 @@ impl App {
       }
     }
 
-    for i in 0..10 {
+    for i in 0..self.examples {
       let sample = points
         .choose_multiple(&mut thread_rng(), points.len() / 10)
         .cloned()
@@ -82,8 +88,7 @@ impl App {
       let mut delaunay = Delaunay::new(&sample);
 
       for step in 0.. {
-        #[cfg(feature = "delaunay-steps")]
-        {
+        if self.delaunay_steps {
           let mut of = fs::OpenOptions::new()
             .write(true)
             .create(true)
@@ -122,7 +127,7 @@ impl App {
       }
     }
 
-    for i in 0..10 {
+    for i in 0..self.examples {
       let mut sample = points
         .choose_multiple(&mut thread_rng(), points.len() / 10)
         .cloned()
