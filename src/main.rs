@@ -31,9 +31,12 @@ struct App {
 impl App {
   fn gen_bounding_boxes(&self) -> io::Result<()> {
     let mut points = Vec::new();
-    for x in 0..=10 {
-      for y in 0..=10 {
-        points.push(Point2::new(x as f32, y as f32));
+    for x in 0..10 {
+      for y in 0..10 {
+        points.push(Point2::new(
+          thread_rng().gen::<f32>() + x as f32,
+          thread_rng().gen::<f32>() + y as f32,
+        ));
       }
     }
 

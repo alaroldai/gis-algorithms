@@ -69,9 +69,6 @@ fn circumcircle(a: usize, b: usize, c: usize, points: &[Point]) -> Option<(Point
     return None;
   };
 
-  // let intersection = mab + nab * Point2::from(Matrix2::from_columns(&[nab,
-  // nbc]).try_inverse().unwrap() * (mbc - mab)).coords[0];
-
   let radius = (intersection - a).norm();
   Some((intersection, radius))
 }
