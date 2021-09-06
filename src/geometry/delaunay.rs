@@ -94,7 +94,7 @@ fn do_flip(first_id: usize, second_id: usize, triads: &mut [Triad], points: &[Po
   let first = triads[first_id].clone();
   let second = triads[second_id].clone();
 
-  log::info!(
+  log::warn!(
     "flip: {} {} {} and {} {} {}",
     first.a,
     first.b,
@@ -222,6 +222,10 @@ pub struct Delaunay {
 }
 
 impl Delaunay {
+
+  // Note that this step *invalidates* some of the iterator variables,
+  // because its assumed that it is called last.
+  // in particular, `triads_by_edge` will be inavlidated by any flipping done in this step.
   pub fn flip_step(&mut self) {
     log::info!("{:?}", self.triads_by_edge);
     // for each adjacent pair of triangles,
@@ -232,7 +236,6 @@ impl Delaunay {
     queue.push_front(0usize);
 
     while let Some(tid) = queue.pop_front() {
-      visited.insert(tid);
       let triad = &self.triads[tid];
       log::info!("flip: [{}] {}, {}, {}", tid, triad.a, triad.b, triad.c,);
 
@@ -246,7 +249,8 @@ impl Delaunay {
         if let Some(next) = next {
           if !visited.contains(&next) {
             log::info!("flip: discovered neighbour");
-            queue.push_back(next);
+            queue.push_front(next);
+            visited.insert(tid);
             continue;
           }
 
@@ -269,6 +273,8 @@ impl Delaunay {
           );
           if circumcircle_contains(&self.triads[next], self.points[outside], &self.points) {
             do_flip(tid, next, &mut self.triads, &self.points);
+            queue.push_front(tid);
+            break;
           }
         }
       }
@@ -466,10 +472,12 @@ impl Delaunay {
     }
   }
 
-  pub fn gnuplot(&self) -> io::Result<String> {
+  pub fn gnuplot(&self, show_neighbours: bool, show_circumcircles: bool) -> io::Result<String> {
     io_string(|out| {
-      writeln!(out, "set xrange [0:10]");
-      writeln!(out, "set yrange [0:10]");
+
+      writeln!(out, "set xrange [0:10]")?;
+      writeln!(out, "set yrange [0:10]")?;
+
       writeln!(out, "$points << EOD")?;
       for (i, point) in self.points.iter().enumerate() {
         writeln!(
@@ -481,6 +489,7 @@ impl Delaunay {
         )?;
       }
       writeln!(out, "EOD")?;
+
       writeln!(out, "$edges << EOD")?;
       for triad in &self.triads {
         let a = self.points[triad.a];
@@ -499,37 +508,47 @@ impl Delaunay {
         }
       }
       writeln!(out, "EOD")?;
-      writeln!(out, "$neighbours << EOD")?;
-      for triad in &self.triads {
-        for n in [triad.ab, triad.bc, triad.ca] {
-          if let Some(n) = n {
-            let centre = triad.centre_of_mass(&self.points);
-            writeln!(
-              out,
-              "{} {} {} {}",
-              centre.coords.x,
-              centre.coords.y,
-              Point::from(self.triads[n].centre_of_mass(&self.points) - centre)
-                .coords
-                .x,
-              Point::from(self.triads[n].centre_of_mass(&self.points) - centre)
-                .coords
-                .y
-            )?;
+
+      if show_neighbours {
+        writeln!(out, "$neighbours << EOD")?;
+        for triad in &self.triads {
+          for n in [triad.ab, triad.bc, triad.ca] {
+            if let Some(n) = n {
+              let centre = triad.centre_of_mass(&self.points);
+              writeln!(
+                out,
+                "{} {} {} {}",
+                centre.coords.x,
+                centre.coords.y,
+                Point::from(self.triads[n].centre_of_mass(&self.points) - centre)
+                  .coords
+                  .x,
+                Point::from(self.triads[n].centre_of_mass(&self.points) - centre)
+                  .coords
+                  .y
+              )?;
+            }
           }
         }
+        writeln!(out, "EOD")?;
       }
-      writeln!(out, "EOD")?;
 
-      writeln!(out, "$circles << EOD");
-      for triad in &self.triads {
-        writeln!(out, "{} {} {}", triad.cc_centre.coords.x, triad.cc_centre.coords.y, triad.cc_radius);
+      if show_circumcircles {
+        writeln!(out, "$circles << EOD")?;
+        for triad in &self.triads {
+          writeln!(out, "{} {} {}", triad.cc_centre.coords.x, triad.cc_centre.coords.y, triad.cc_radius)?;
+        }
+        writeln!(out, "EOD")?;
       }
-      writeln!(out, "EOD");
+
       writeln!(out, "plot $points with points, \\")?;
       writeln!(out, "$edges with vectors nohead, \\")?;
-      writeln!(out, "$neighbours with vectors, \\")?;
-      writeln!(out, "$circles with circles, \\")?;
+      if show_neighbours {
+        writeln!(out, "$neighbours with vectors, \\")?;
+      }
+      if show_circumcircles {
+        writeln!(out, "$circles with circles, \\")?;
+      }
       writeln!(out)?;
 
       Ok(())

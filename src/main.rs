@@ -18,14 +18,23 @@ use structopt::StructOpt;
 #[derive(StructOpt)]
 #[structopt(name = "GIS Algorithms")]
 struct App {
+  #[structopt(long, short)]
+  examples: usize,
+
+  #[structopt(long, short)]
+  steps: bool,
+
+  #[structopt(long, short)]
+  circles: bool,
+
+  #[structopt(long, short)]
+  neighbours: bool,
+  
   #[structopt(short, long, parse(from_os_str), default_value = "gen")]
   output: PathBuf,
 
-  #[structopt(long)]
-  examples: usize,
-
-  #[structopt(long)]
-  delaunay_steps: bool,
+  #[structopt(short, long)]
+  points: usize,
 }
 
 impl App {
@@ -42,7 +51,7 @@ impl App {
 
     for idx in 0..self.examples {
       let sample = points
-        .choose_multiple(&mut thread_rng(), points.len() / 10)
+        .choose_multiple(&mut thread_rng(), self.points)
         .cloned()
         .collect::<Vec<_>>();
       let mut of = fs::OpenOptions::new()
@@ -84,20 +93,39 @@ impl App {
 
     for i in 0..self.examples {
       let sample = points
-        .choose_multiple(&mut thread_rng(), points.len() / 10)
+        .choose_multiple(&mut thread_rng(), self.points)
         .cloned()
         .collect::<Vec<_>>();
 
       let mut delaunay = Delaunay::new(&sample);
 
       for step in 0.. {
-        if self.delaunay_steps {
-          let mut of = fs::OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .open(self.output.join(&format!("delaunay-{}-{}.plt", i, step)))?;
-          write!(of, "{}", delaunay.gnuplot()?)?;
+        if self.steps {
+          if self.circles {
+            let mut of = fs::OpenOptions::new()
+              .write(true)
+              .create(true)
+              .truncate(true)
+              .open(self.output.join(&format!("delaunay-{}-{}-triads.plt", i, step)))?;
+            write!(of, "{}", delaunay.gnuplot(false, false)?)?;
+          }
+          if self.circles {
+            let mut of = fs::OpenOptions::new()
+              .write(true)
+              .create(true)
+              .truncate(true)
+              .open(self.output.join(&format!("delaunay-{}-{}-circles.plt", i, step)))?;
+            write!(of, "{}", delaunay.gnuplot(false, self.circles)?)?;
+          }
+
+          if self.neighbours {
+            let mut of = fs::OpenOptions::new()
+              .write(true)
+              .create(true)
+              .truncate(true)
+              .open(self.output.join(&format!("delaunay-{}-{}-neighbours.plt", i, step)))?;
+            write!(of, "{}", delaunay.gnuplot(self.neighbours, false)?)?;
+          }
         }
 
         match delaunay.step() {
@@ -107,12 +135,31 @@ impl App {
         };
       }
 
-      let mut of = fs::OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .open(self.output.join(&format!("delaunay-{}.plt", i)))?;
-      write!(of, "{}", delaunay.gnuplot()?)?;
+      if self.circles {
+        let mut of = fs::OpenOptions::new()
+          .write(true)
+          .create(true)
+          .truncate(true)
+          .open(self.output.join(&format!("delaunay-{}-triads.plt", i)))?;
+        write!(of, "{}", delaunay.gnuplot(false, false)?)?;
+      }
+      if self.circles {
+        let mut of = fs::OpenOptions::new()
+          .write(true)
+          .create(true)
+          .truncate(true)
+          .open(self.output.join(&format!("delaunay-{}-circles.plt", i)))?;
+        write!(of, "{}", delaunay.gnuplot(false, self.circles)?)?;
+      }
+
+      if self.neighbours {
+        let mut of = fs::OpenOptions::new()
+          .write(true)
+          .create(true)
+          .truncate(true)
+          .open(self.output.join(&format!("delaunay-{}-neighbours.plt", i)))?;
+        write!(of, "{}", delaunay.gnuplot(self.neighbours, false)?)?;
+      }
     }
 
     Ok(())
@@ -165,7 +212,11 @@ impl App {
 }
 
 fn main() -> io::Result<()> {
-  env_logger::init();
+  env_logger::builder()
+    .format(|buf, record| {
+      writeln!(buf, "{}: {}", record.level(), record.args())
+    }) 
+    .init();
 
   let app = App::from_args();
 
