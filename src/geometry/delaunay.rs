@@ -104,7 +104,7 @@ fn do_flip(first_id: usize, second_id: usize, triads: &mut [Triad], points: &[Po
     second.c,
   );
 
-  let mut new_second = triad_normalise(&second, first.a);
+  let new_second = &mut triads[second_id];
   new_second.c = first.c;
   new_second.bc = Some(first_id);
   new_second.ca = first.ca;
@@ -116,9 +116,8 @@ fn do_flip(first_id: usize, second_id: usize, triads: &mut [Triad], points: &[Po
   if let Some(neighbour) = new_second.ca {
     bind_edge(neighbour, new_second.a, second_id, triads);
   }
-  triads[second_id] = new_second;
 
-  let mut new_first = first.clone();
+  let new_first = &mut triads[first_id];
   new_first.a = second.b;
   new_first.ca = Some(second_id);
   new_first.ab = second.bc;
@@ -130,7 +129,6 @@ fn do_flip(first_id: usize, second_id: usize, triads: &mut [Triad], points: &[Po
   if let Some(neighbour) = new_first.ab {
     bind_edge(neighbour, new_first.b, first_id, triads);
   }
-  triads[first_id] = new_first;
 }
 
 #[derive(Clone, Debug)]
@@ -239,6 +237,20 @@ impl Delaunay {
       let triad = &self.triads[tid];
       log::info!("flip: [{}] {}, {}, {}", tid, triad.a, triad.b, triad.c,);
 
+      // Breadth-first search: enqueue neighbouring triangles
+      for next in [
+        triad.ab,
+        triad.bc,
+        triad.ca,
+      ] {
+        if let Some(next) = next {
+          if !visited.contains(&next) {
+            queue.push_back(next);
+            visited.insert(tid);
+          }
+        }
+      }
+
       // For each edge starting at vertex `start`, we may have a neighbour `next`,
       // which we need to flip with if the point `outside` is inside its circumcircle
       for (start, next, outside) in [
@@ -247,12 +259,11 @@ impl Delaunay {
         (triad.c, triad.ca, triad.b),
       ] {
         if let Some(next) = next {
-          if !visited.contains(&next) {
-            log::info!("flip: discovered neighbour");
-            queue.push_front(next);
-            visited.insert(tid);
-            continue;
-          }
+          log::info!("flip: processing neighbour {} {} {}",
+            self.triads[next].a,
+            self.triads[next].b,
+            self.triads[next].c,
+          );
 
           // The original sweephull implementation has a separate branch here,
           // depending on which edge is shared and where that edge falls in each triangle
@@ -266,10 +277,10 @@ impl Delaunay {
           self.triads[tid] = triad_normalise(&self.triads[tid], start);
           log::info!(
             "after normalise ({}): {} {} {}",
+            start,
             self.triads[next].a,
             self.triads[next].b,
             self.triads[next].c,
-            start,
           );
           if circumcircle_contains(&self.triads[next], self.points[outside], &self.points) {
             do_flip(tid, next, &mut self.triads, &self.points);
@@ -362,8 +373,8 @@ impl Delaunay {
 
       log::info!("Found new visible edge");
 
-      let h0 = self.hull[hid];
-      let h1 = self.hull[hnext];
+      let h1 = self.hull[hid];
+      let h0 = self.hull[hnext];
 
       let (centre, radius) = circumcircle(h0, h1, pid, &self.points).unwrap();
       let tid = self.triads.len();
@@ -482,10 +493,10 @@ impl Delaunay {
       for (i, point) in self.points.iter().enumerate() {
         writeln!(
           out,
-          "{} {} 2 {}",
+          "{} {} \"{}\"",
           point.coords.x,
           point.coords.y,
-          if i == 0 { "2" } else { "6" }
+          i
         )?;
       }
       writeln!(out, "EOD")?;
@@ -541,7 +552,7 @@ impl Delaunay {
         writeln!(out, "EOD")?;
       }
 
-      writeln!(out, "plot $points with points, \\")?;
+      writeln!(out, "plot $points with labels, \\")?;
       writeln!(out, "$edges with vectors nohead, \\")?;
       if show_neighbours {
         writeln!(out, "$neighbours with vectors, \\")?;
