@@ -13,12 +13,15 @@ use std::{
 mod delaunay;
 pub use delaunay::*;
 
+mod circle_intersect;
+
 #[cfg(feature = "voronoi")]
 mod voronoi;
 #[cfg(feature = "voronoi")]
 pub use voronoi::*;
 
 pub type Point = Point2<f32>;
+pub type Vector = Vector2<f32>;
 
 pub fn point_cmp_lex_xy(lhs: &Point, rhs: &Point) -> Option<Ordering> {
   match lhs.coords.x.partial_cmp(&rhs.coords.x) {
